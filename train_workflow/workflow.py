@@ -11,6 +11,7 @@ import pandas as pd
 from ase.io import read, write
 from ase import Atoms
 from ase.io.trajectory import Trajectory
+from ase import units 
 import nequip
 from nequip.utils import Config
 import allegro
@@ -227,6 +228,11 @@ def parse_arguments():
                            required = False,
                            default = "cp2k.ssmp",
                            help="path to CP2K executable")
+   arg_parser.add_argument('--convert_energy_extxyz',
+                           required = False,
+                           default = "Hartree",
+                           choices=['eV','kJ','kcal','Hartree'],
+                           help="convert cp2k energy from Ha (default) to eV or kJ/mol or kcal/mol")
    
    return arg_parser.parse_args()
 
@@ -264,6 +270,10 @@ def main():
    dataset = args.dataset
    system_name = args.system_name
    forces_loss = args.forces_loss
+   if args.convert_energy_extxyz == 'kJ' or args.convert_energy_extxyz == 'kcal':
+       convert_energy_extxyz_value = getattr(units, args.convert_energy_extxyz) / units.mol
+   else:
+       convert_energy_extxyz_value = getattr(units, args.convert_energy_extxyz)
    #options of the model
    cutoff_value = args.cutoff
    polynomial_cutoff_p_value = args.polynomial_cutoff_p
@@ -309,7 +319,9 @@ def main():
    if args.data_process:
 
        print("*****************************")
-       print("Processing positions and forces files")     
+       print("Processing positions and forces files")    
+       if args.convert_energy_extxyz:
+           print('Converting energy from Hartree to {} for extxyz'.format(args.convert_energy_extxyz))
        positions = data_dir + '/' + data_pos
        forces = data_dir + '/' + data_frc
        file_exists(positions)
@@ -320,7 +332,7 @@ def main():
        cell_vec_c = np.array([float(c) for c in cell_value_c ])
        cell_mat = np.concatenate( (cell_vec_a, cell_vec_b, cell_vec_c), axis = 0).reshape(3,3)
 
-       combine_trajectory( positions, forces, data_dir+'/'+dataset, cell_mat, 
+       combine_trajectory( positions, forces, convert_energy_extxyz_value, data_dir+'/'+dataset, cell_mat, 
                            interval = interval, mask_labels = mask_labels, dim = 0)
    
    if args.train and method == "allegro":

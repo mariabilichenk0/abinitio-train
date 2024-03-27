@@ -2,6 +2,7 @@ import os
 import re
 import subprocess
 from ase.build import sort
+from ase.units import Hartree, mol
 import numpy as np
 import site
 import textwrap
@@ -67,21 +68,23 @@ def extract_first_frame_xyz(positions_filename, natoms, output_filename):
     command = f"head -n $(expr {natoms} + 2) {positions_filename} > {output_filename}"
     subprocess.run(command, shell=True)
 
-def Energy_reader_cp2k_xyz(f, data_dir, no_skip=0):
+def Energy_reader_cp2k_xyz(f, data_dir, convert_energy_extxyz_value,no_skip=0):
+    ''' CP2K unit of energy is Ha by default. If conversion is needed 
+        to create extxyz for training in NequIP, specify it in arguments
+        as e.g. convert_energy_to='eV', if not specified, assumes Ha '''
     filename = os.path.join(data_dir, f)
     grep_command = f"grep -Po '(?<=E = ).*' {filename}"
     output = subprocess.check_output(grep_command, shell=True, text=True)
     matches = output.splitlines()
     if no_skip == 0:
-        ener = [float(en) for en in matches]
+        ener = [float(en)*Hartree/convert_energy_extxyz_value for en in matches]
     else:
-        ener = [float(en) for en in matches[::no_skip]]
+        ener = [float(en)*Hartree/convert_energy_extxyz_value for en in matches[::no_skip]]
     return ener
 
 
-def combine_trajectory(coordinates_file, forces_file, output_file, cell, interval = 1, mask_labels = False, dim = 0):
-
-    print("enter combine_trajectory")
+def combine_trajectory(coordinates_file, forces_file, convert_energy_extxyz_value, output_file, cell, interval = 1, mask_labels = False, dim = 0):
+    
     coordinates = mda.coordinates.XYZ.XYZReader(coordinates_file)
     topology_coordinates = mda.topology.XYZParser.XYZParser(coordinates_file)
     forces = mda.coordinates.XYZ.XYZReader(forces_file)
@@ -89,12 +92,8 @@ def combine_trajectory(coordinates_file, forces_file, output_file, cell, interva
 
     cell_box = mda.lib.mdamath.triclinic_box(cell[0,:], cell[1,:], cell[2, :])
 
-    print("after mda topology and coordinates")
-
     coordinates_universe = mda.Universe(coordinates_file, topology_format = "XYZ", dt = 1.0)
     forces_universe = mda.Universe(forces_file, topology_format = "XYZ", dt = 1.0)
-
-    print("after mda universe")
 
     coordinates_universe.dimensions = cell_box
     forces_universe.dimensions = cell_box
@@ -105,11 +104,7 @@ def combine_trajectory(coordinates_file, forces_file, output_file, cell, interva
     forces_ase = read("temp_pos.xyz", format='xyz', index=0, parallel = False)  # Read first frame
     os.remove("temp_pos.xyz")
 
-    print("after ase reading first frame")
-
-    energies = Energy_reader_cp2k_xyz(coordinates_file, "./", no_skip = interval)
-
-    print("Entering coordinates and forces loop")
+    energies = Energy_reader_cp2k_xyz(coordinates_file, "./", convert_energy_extxyz_value,no_skip = interval)
 
     if os.path.isfile(output_file):
         os.remove(output_file)
