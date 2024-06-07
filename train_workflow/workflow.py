@@ -492,13 +492,13 @@ def main():
             rdf_ij.run(step = interval) 
    
          # Plot RDF
-         plt.plot(rdf_ij.bins, rdf_ij.rdf)
+         plt.plot(rdf_ij.results.bins, rdf_ij.results.rdf)
          plt.xlabel('Radius (angstrom)')
          plt.ylabel(f'g(r) {el_i}-{el_j}')
      
          # Save RDF data to a file
          data_filename = f'rdf_data_{el_i}_{el_j}.dat'
-         np.savetxt(data_filename, np.column_stack((rdf_ij.bins, rdf_ij.rdf)), header='Radius (angstrom)\tg(r)')
+         np.savetxt(data_filename, np.column_stack((rdf_ij.results.bins, rdf_ij.results.rdf)), header='Radius (angstrom)\tg(r)')
      
          # Save plot as PNG file
          plot_filename = f'rdf_plot_{el_i}_{el_j}.png'
